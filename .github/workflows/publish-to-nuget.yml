@@ -148,7 +148,7 @@ jobs:
           if (Test-Path $zip) { Remove-Item $zip }
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
           $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
-          "$(Split-Path $zip -Leaf)  $hash" | Set-Content -Path (Join-Path $outDir 'checksums.txt') -Encoding utf8
+          "$hash  $(Split-Path $zip -Leaf)" | Set-Content -Path (Join-Path $outDir 'checksums.txt') -Encoding utf8
           Get-Content (Join-Path $outDir 'checksums.txt')
 
       - name: Create GitHub Release
