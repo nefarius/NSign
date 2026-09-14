@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,12 +9,18 @@ internal static class CredentialStore
 {
     private const uint CredTypeGeneric = 1;
     private const uint CredPersistLocalMachine = 2;
+    private const int ErrorNotFound = 1168;
 
     public static bool TryReadPin(out PinSecret pin)
     {
         pin = new PinSecret([]);
         if (!CredReadW(Defaults.CredentialTarget, CredTypeGeneric, 0, out var credPtr))
-            return false;
+        {
+            var error = Marshal.GetLastPInvokeError();
+            if (error == ErrorNotFound)
+                return false;
+            throw new Win32Exception(error);
+        }
 
         try
         {

@@ -17,9 +17,11 @@ internal static class CertificateResolver
         {
             var want = NormalizeThumbprint(thumbprint);
             match = candidates.FirstOrDefault(c =>
-                string.Equals(NormalizeThumbprint(c.Thumbprint), want, StringComparison.OrdinalIgnoreCase));
+                string.Equals(NormalizeThumbprint(c.Thumbprint), want, StringComparison.OrdinalIgnoreCase)
+                && HasUsableRsaCngKey(c));
             if (match is null)
-                throw new InvalidOperationException($"No certificate with thumbprint {thumbprint} in CurrentUser\\My.");
+                throw new InvalidOperationException(
+                    $"No certificate with thumbprint {thumbprint} and a usable RSA CNG private key in CurrentUser\\My.");
         }
         else if (!string.IsNullOrWhiteSpace(subject))
         {
@@ -77,6 +79,22 @@ internal static class CertificateResolver
             .OrderByDescending(r => string.Equals(r.Provider, Defaults.SafeNetKsp, StringComparison.OrdinalIgnoreCase))
             .ThenByDescending(r => r.NotAfter)
             .ToList();
+    }
+
+    private static bool HasUsableRsaCngKey(X509Certificate2 cert)
+    {
+        if (!cert.HasPrivateKey)
+            return false;
+
+        try
+        {
+            using var rsa = cert.GetRSAPrivateKey();
+            return rsa is RSACng;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 
     private static X509Store OpenMy()

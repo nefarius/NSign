@@ -6,6 +6,8 @@ namespace NSign.Cli;
 
 internal static class VerifyCommand
 {
+    private static readonly TimeSpan VerifyTimeout = TimeSpan.FromMinutes(2);
+
     public static Command Build()
     {
         var files = new Argument<List<string>>("files")
@@ -49,7 +51,20 @@ internal static class VerifyCommand
                     return ExitCodes.Failure;
                 }
 
-                proc.WaitForExit();
+                if (!proc.WaitForExit(VerifyTimeout))
+                {
+                    try
+                    {
+                        proc.Kill(entireProcessTree: true);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+
+                    Console.Error.WriteLine($"signtool verify timed out after {VerifyTimeout.TotalSeconds:0}s: {file}");
+                    return ExitCodes.Failure;
+                }
+
                 if (proc.ExitCode != 0)
                     overall = ExitCodes.Failure;
             }

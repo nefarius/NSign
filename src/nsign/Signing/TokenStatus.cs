@@ -12,7 +12,8 @@ internal static class TokenStatus
 {
     public const int S_OK = 0;
     public const int NTE_SILENT_CONTEXT = unchecked((int)0x80090022);
-    public const int NTE_INCORRECT_PASSWORD = unchecked((int)0x8009002E);
+    public const int NTE_UI_REQUIRED = unchecked((int)0x8009002E);
+    public const int NTE_INCORRECT_PASSWORD = unchecked((int)0x80090033);
     public const int NTE_BAD_KEYSET = unchecked((int)0x80090016);
     public const int SCARD_W_WRONG_CHV = unchecked((int)0x8010006B);
     public const int SCARD_W_CHV_BLOCKED = unchecked((int)0x8010006C);
@@ -25,7 +26,7 @@ internal static class TokenStatus
     public static string Describe(int status) => status switch
     {
         S_OK => "Success",
-        NTE_SILENT_CONTEXT =>
+        NTE_SILENT_CONTEXT or NTE_UI_REQUIRED =>
             "The token required UI (PIN change / expiry). Update the PIN in your password manager, then run nsign set-pin.",
         NTE_INCORRECT_PASSWORD or SCARD_W_WRONG_CHV =>
             "Wrong token PIN. Update Credential Manager with: nsign set-pin",

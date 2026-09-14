@@ -132,6 +132,7 @@ internal sealed class AuthenticodeSigner : IDisposable
                 IntPtr.Zero,
                 &signInfo,
                 IntPtr.Zero);
+            GC.KeepAlive(_signCallback);
 
             if (result == 0 && context != IntPtr.Zero)
                 Native.SignerFreeSignerContext(context);
