@@ -26,24 +26,59 @@ Silent Authenticode signer for a SafeNet Authentication Client hardware token. D
 | Component | Supported |
 | --- | --- |
 | OS | Windows 10/11, **x64** |
-| SDK (build) | [.NET SDK 10.x](https://dotnet.microsoft.com/download/dotnet/10.0) |
+| SDK (build / `dotnet tool`) | [.NET SDK 8.x, 9.x, or 10.x](https://dotnet.microsoft.com/download/dotnet) |
+| Runtime (global/local tool) | Matching .NET 8, 9, or 10 **runtime** on Windows x64 |
 | Token stack | SafeNet Authentication Client (tested with 10.9.x) + SafeNet Smart Card Key Storage Provider |
 | Timestamp | RFC3161 HTTP(S) timestamp servers |
 
-Other architectures, non-Windows hosts, and non-SafeNet KSPs are out of scope.
+Other architectures, non-Windows hosts, and non-SafeNet KSPs are out of scope. `dotnet tool` is an SDK feature; a runtime-only install cannot install or update the package.
 
-## Installation / quick start
+## Installation
 
-1. Publish a self-contained exe:
+### .NET tool
 
-   ```powershell
-   dotnet publish .\src\nsign\nsign.csproj -c Release -o .\artifacts\nsign
-   ```
+```powershell
+dotnet tool install -g Nefarius.Tools.NSign
+```
 
+This puts the `nsign` shim on `PATH` (typically `%USERPROFILE%\.dotnet\tools\nsign.exe`). Requires a .NET 8, 9, or 10 **SDK** on Windows x64.
+
+```powershell
+dotnet tool update -g Nefarius.Tools.NSign
+dotnet tool uninstall -g Nefarius.Tools.NSign
+```
+
+Local (repo-scoped) install:
+
+```powershell
+dotnet new tool-manifest
+dotnet tool install Nefarius.Tools.NSign
+```
+
+### Local package (before nuget.org)
+
+```powershell
+dotnet pack .\src\nsign\nsign.csproj -c Release -o .\artifacts\nupkg
+dotnet tool install -g --add-source .\artifacts\nupkg Nefarius.Tools.NSign
+```
+
+### Standalone exe
+
+Self-contained `win-x64` single-file publish for hosts that should not depend on a shared .NET runtime (SignRelay agents, air-gapped machines):
+
+```powershell
+dotnet publish .\src\nsign\nsign.csproj -c Release -f net10.0 -p:PublishProfile=Standalone-win-x64
+```
+
+Output: `.\artifacts\nsign\nsign.exe`.
+
+## Quick start
+
+1. Install the tool or publish the standalone exe (see [Installation](#installation)).
 2. Store the token PIN in the **current user's** Credential Manager:
 
    ```powershell
-   .\artifacts\nsign\nsign.exe set-pin
+   nsign set-pin
    ```
 
    Target name: `SafeNet:CodeSign`. Re-run after you change the PIN in SafeNet Authentication Client or your password manager.
@@ -51,7 +86,7 @@ Other architectures, non-Windows hosts, and non-SafeNet KSPs are out of scope.
 3. Confirm the signing certificate is visible:
 
    ```powershell
-   .\artifacts\nsign\nsign.exe list-certs
+   nsign list-certs
    ```
 
    The private-key provider should be `SafeNet Smart Card Key Storage Provider`.
@@ -59,16 +94,18 @@ Other architectures, non-Windows hosts, and non-SafeNet KSPs are out of scope.
 4. Sign (pass `/sha1` or `/n`; there is no baked-in default certificate):
 
    ```powershell
-   .\artifacts\nsign\nsign.exe sign /v /fd sha256 /sha1 <thumbprint> /tr http://timestamp.digicert.com /td sha256 C:\Temp\sample.exe
+   nsign sign /v /fd sha256 /sha1 <thumbprint> /tr http://timestamp.digicert.com /td sha256 C:\Temp\sample.exe
    ```
 
 5. Verify:
 
    ```powershell
-   .\artifacts\nsign\nsign.exe verify C:\Temp\sample.exe
+   nsign verify C:\Temp\sample.exe
    ```
 
    (`verify` shells out to Windows SDK `signtool verify /pa /v`.)
+
+Standalone publish uses `.\artifacts\nsign\nsign.exe` in place of `nsign`.
 
 ## SignRelay integration
 
@@ -76,11 +113,13 @@ No SignRelay source changes. Point the agent at `nsign.exe` and run signing in-p
 
 | Setting | Value |
 | --- | --- |
-| `SignRelayAgent__SignToolPath` | Full path to `nsign.exe` |
+| `SignRelayAgent__SignToolPath` | Full path to `nsign.exe` — either the global-tool shim (`%USERPROFILE%\.dotnet\tools\nsign.exe` for the service account) or the standalone publish output |
 | `SignRelayAgent__SigningExecution` | `SameProcess` |
 | `SignRelayAgent__CertificateThumbprint` | SHA-1 thumbprint of the token cert (or use subject) |
 | `SignRelayAgent__CertificateSubjectName` | Subject substring, if you prefer `/n` |
 | `SignRelayAgent__TimestampServerUrl` | RFC3161 URL (SignRelay default is DigiCert) |
+
+A Windows service does not inherit an interactive user's `PATH`. Prefer the full shim or standalone path over a bare `nsign` command name.
 
 The Agent Windows service must run as the **same user** who owns the token, the `CurrentUser\My` certificate, and the `SafeNet:CodeSign` credential. `LocalSystem` cannot see that vault or the user cert store.
 
@@ -122,15 +161,18 @@ Either `/sha1` or `/n` is required.
 
 Prerequisites:
 
-- .NET SDK **10.x**
+- .NET SDK **8.x, 9.x, or 10.x** (SDK 10.x can multi-target all three)
 - Windows x64
 - Windows SDK (only required for `nsign verify`, which locates `signtool.exe`)
 
 ```powershell
 dotnet restore nsign.sln
 dotnet build nsign.sln -c Release
-dotnet publish .\src\nsign\nsign.csproj -c Release -o .\artifacts\nsign
+dotnet pack .\src\nsign\nsign.csproj -c Release -o .\artifacts\nupkg
+dotnet publish .\src\nsign\nsign.csproj -c Release -f net10.0 -p:PublishProfile=Standalone-win-x64
 ```
+
+Package version comes from [MinVer](https://github.com/adamralph/minver) (`v`-prefixed tags). Untagged builds pack as `0.0.0`.
 
 ## Security notes
 
