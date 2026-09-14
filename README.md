@@ -1,13 +1,18 @@
 # nsign
 
+[![Build](https://github.com/nefarius/NSign/actions/workflows/build.yml/badge.svg)](https://github.com/nefarius/NSign/actions/workflows/build.yml)
+[![NuGet](https://img.shields.io/nuget/v/Nefarius.Tools.NSign.svg)](https://www.nuget.org/packages/Nefarius.Tools.NSign)
+[![NuGet downloads](https://img.shields.io/nuget/dt/Nefarius.Tools.NSign.svg)](https://www.nuget.org/packages/Nefarius.Tools.NSign)
+[![GitHub release](https://img.shields.io/github/v/release/nefarius/NSign.svg)](https://github.com/nefarius/NSign/releases)
+
 Silent Authenticode signer for a SafeNet Authentication Client hardware token. Drop-in replacement for the Windows SDK `signtool sign` argv that SignRelay (and similar agents) already emit.
 
-`nsign` injects the token PIN into the SafeNet CNG KSP (`NCRYPT_PIN_PROPERTY`) and performs private-key operations with `NCRYPT_SILENT_FLAG`, then signs via `SignerSignEx3`. The SafeNet PIN dialog is not shown. PIN-change and PIN-expiry dialogs are **not** automated; those stay a manual operator task.
+`nsign` injects the token PIN into the SafeNet CNG KSP through the CNG `SmartCardPin` property (`NCRYPT_PIN_PROPERTY`) and performs private-key operations with `NCRYPT_SILENT_FLAG`, then signs via `SignerSignEx3`. The SafeNet PIN dialog is not shown. PIN-change and PIN-expiry dialogs are **not** automated; those stay a manual operator task.
 
 ## Features
 
 - `signtool`-compatible `sign` verb (`/` or `-` prefixes).
-- PIN stored in the current user's Windows Credential Manager (DPAPI).
+- PIN stored in the current user's Windows Credential Manager (DPAPI) for later logon sessions of that same user on this computer.
 - One process unlocks the token once and signs every file on the command line.
 - RFC3161 timestamping (`/tr`, `/td`).
 - `list-certs` and `verify` helpers.
@@ -17,7 +22,7 @@ Silent Authenticode signer for a SafeNet Authentication Client hardware token. D
 - Windows x64 only. The agent/token path is a Windows smart-card KSP.
 - Requires SafeNet Authentication Client and a connected token (USB, USB-over-IP, etc.).
 - Unknown `signtool` flags are **rejected** (nonzero exit). Supported flags are listed under [CLI](#cli).
-- Credential Manager generic credentials are readable by **any process running as the same Windows user**. This is not isolation from same-user malware.
+- Credential Manager generic credentials persist for later logon sessions of **the same Windows user on this computer** and are readable by any process running as that user. Other users cannot read them. This is not isolation from same-user malware.
 - Running a signing service as the token-owning interactive user lets the service see that user's cert store and PIN vault. That is a privilege trade-off, not a hardening step.
 - `NCRYPT_SILENT_FLAG` is applied on `NCryptSignHash`, not on the PIN `SetProperty` call. If the token requires UI (PIN change / expiry), the silent sign fails instead of prompting.
 
@@ -65,7 +70,9 @@ dotnet tool install -g --add-source .\artifacts\nupkg Nefarius.Tools.NSign
 
 ### Standalone exe
 
-Self-contained `win-x64` single-file publish for hosts that should not depend on a shared .NET runtime (SignRelay agents, air-gapped machines):
+Tagged releases attach a self-contained `win-x64` zip (`nsign-<version>-win-x64.zip` plus SHA-256 checksums) under [GitHub Releases](https://github.com/nefarius/NSign/releases).
+
+To publish locally for hosts that should not depend on a shared .NET runtime (SignRelay agents, air-gapped machines):
 
 ```powershell
 dotnet publish .\src\nsign\nsign.csproj -c Release -f net10.0 -p:PublishProfile=Standalone-win-x64
@@ -90,7 +97,7 @@ Output: `.\artifacts\nsign\nsign.exe`.
    nsign list-certs
    ```
 
-   The private-key provider should be `SafeNet Smart Card Key Storage Provider`.
+   The private-key provider should be `SafeNet Smart Card Key Storage Provider`. Certificates must include the code-signing EKU (`1.3.6.1.5.5.7.3.3`).
 
 4. Sign (pass `/sha1` or `/n`; there is no baked-in default certificate):
 
@@ -156,7 +163,7 @@ sign /v /fd sha256 [/sha1 <thumb>] [/n <subject>] [/tr <url> /td sha256] <file>
 | `/as` | Append signature |
 | `/d`, `/du` | Description and description URL |
 
-Either `/sha1` or `/n` is required.
+Either `/sha1` or `/n` is required. The selected certificate must have the code-signing EKU.
 
 ## Build
 
@@ -168,18 +175,21 @@ Prerequisites:
 
 ```powershell
 dotnet restore nsign.sln
-dotnet build nsign.sln -c Release
-dotnet pack .\src\nsign\nsign.csproj -c Release -o .\artifacts\nupkg
+dotnet format nsign.sln --verify-no-changes
+dotnet build nsign.sln -c Release --no-restore
+dotnet test nsign.sln -c Release --no-build
+dotnet pack .\src\nsign\nsign.csproj -c Release --no-build -o .\artifacts\nupkg
 dotnet publish .\src\nsign\nsign.csproj -c Release -f net10.0 -p:PublishProfile=Standalone-win-x64
 ```
 
-Package version comes from [MinVer](https://github.com/adamralph/minver) (`v`-prefixed tags). Untagged builds pack as `0.0.0`.
+Package version comes from [MinVer](https://github.com/adamralph/minver) (`v`-prefixed tags). Untagged builds pack as `0.0.0-alpha.0.N`. See [CONTRIBUTING.md](CONTRIBUTING.md) for style and hardware-test notes.
 
 ## Security notes
 
 - The PIN never appears on the command line. It is read by `set-pin` and stored as a generic Windows credential.
 - Managed strings cannot be reliably wiped. `nsign` keeps the PIN in a disposable `char[]` and zeros that buffer (and the CredWrite blob) after use. This reduces residual copies; it does not make the PIN disappear from process memory.
-- Same-user processes can `CredRead` `SafeNet:CodeSign`. Treat the Windows login that runs `nsign` as the security boundary.
+- Same-user processes can `CredRead` `SafeNet:CodeSign`. The credential persists across later logons of that user on this machine; other Windows users cannot read it. Treat the Windows login that runs `nsign` as the security boundary.
+- Report security issues privately; see [SECURITY.md](SECURITY.md).
 - If the token would need UI, silent signing returns a mapped error (wrong/blocked PIN, PIN change required, token missing) and a nonzero exit code.
 
 ## Support policy

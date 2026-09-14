@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+
 using NSign.Signing;
 
 namespace NSign.Cli;

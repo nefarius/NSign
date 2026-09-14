@@ -32,6 +32,18 @@ internal sealed class MemoryCertificateStore : IDisposable
 
     public void Dispose()
     {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    ~MemoryCertificateStore()
+    {
+        Dispose(disposing: false);
+    }
+
+    private void Dispose(bool disposing)
+    {
+        _ = disposing;
         if (_handle == IntPtr.Zero)
             return;
         Native.CertCloseStore(_handle, CertCloseStoreFlags.NONE);

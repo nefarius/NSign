@@ -5,6 +5,11 @@ using System.Text;
 
 namespace NSign.Credentials;
 
+/// <summary>
+/// Stores the token PIN as a per-user generic Windows credential.
+/// <c>CRED_PERSIST_LOCAL_MACHINE</c> keeps it across later logon sessions of
+/// the same Windows user on this computer. Other users cannot read it.
+/// </summary>
 internal static class CredentialStore
 {
     private const uint CredTypeGeneric = 1;
@@ -81,7 +86,10 @@ internal static class CredentialStore
             };
 
             if (!CredWriteW(ref cred, 0))
-                throw new InvalidOperationException($"CredWriteW failed (0x{Marshal.GetLastPInvokeError():X8}).");
+            {
+                var error = Marshal.GetLastPInvokeError();
+                throw new Win32Exception(error, $"CredWriteW failed (0x{error:X8}).");
+            }
         }
         finally
         {

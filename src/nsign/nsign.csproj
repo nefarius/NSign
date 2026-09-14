@@ -4,8 +4,6 @@
     <!-- PackAsTool rejects platform TFMs (NETSDK1146); stay on bare net* and mark the
          assembly Windows-only. Runtime remains Windows x64 + SafeNet KSP. -->
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PlatformTarget>x64</PlatformTarget>
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -15,31 +13,35 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>nsign</ToolCommandName>
     <PackageId>Nefarius.Tools.NSign</PackageId>
-    <Authors>Benjamin Höglinger-Stelzer</Authors>
     <Description>Silent Authenticode signer for SafeNet Authentication Client tokens.</Description>
-    <Copyright>Copyright (c) 2026 Benjamin Höglinger-Stelzer</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/nefarius/NSign</PackageProjectUrl>
     <RepositoryUrl>https://github.com/nefarius/NSign</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>NSS-128x128.png</PackageIcon>
     <PackageTags>authenticode;signing;safenet;cli;dotnet-tool;signtool</PackageTags>
-    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
       <_Parameter1>windows</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>NSign.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\assets\NSS-128x128.png" Pack="true" PackagePath="\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.CommandLine" Version="2.0.11" />
-    <PackageReference Include="MinVer" Version="8.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,83 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore nsign.sln
+
+      - name: Verify formatting
+        run: dotnet format nsign.sln --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build nsign.sln -c Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test nsign.sln -c Release --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --collect:"XPlat Code Coverage"
+          --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-results
+          path: TestResults/
+
+      - name: Vulnerability scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet list nsign.sln package --vulnerable --include-transitive 2>&1 | tee vuln.txt
+          if grep -q "has the following vulnerable packages" vuln.txt; then
+            exit 1
+          fi
+
+      - name: Pack
+        run: dotnet pack .\src\nsign\nsign.csproj -c Release --no-build -o .\artifacts\nupkg
+
+      - name: Verify package
+        shell: pwsh
+        run: ./scripts/Verify-Package.ps1 -PackageDirectory ./artifacts/nupkg
+
+      - name: Smoke-test packed tool
+        shell: pwsh
+        run: |
+          $nupkg = Get-ChildItem ./artifacts/nupkg/Nefarius.Tools.NSign.*.nupkg | Where-Object { $_.Name -notlike '*.symbols.nupkg' } | Select-Object -First 1
+          if (-not $nupkg) { throw 'nupkg not found' }
+          $name = $nupkg.BaseName
+          $prefix = 'Nefarius.Tools.NSign.'
+          if (-not $name.StartsWith($prefix)) { throw "Unexpected nupkg name: $name" }
+          $version = $name.Substring($prefix.Length)
+          $installDir = Join-Path $PWD 'artifacts/tool-install'
+          New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+          dotnet tool install Nefarius.Tools.NSign --version $version --add-source $nupkg.DirectoryName --tool-path $installDir
+          & (Join-Path $installDir 'nsign.exe') --help
+          if ($LASTEXITCODE -ne 0) { throw "nsign --help exited $LASTEXITCODE" }
