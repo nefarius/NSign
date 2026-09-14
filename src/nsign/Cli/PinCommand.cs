@@ -1,4 +1,6 @@
 using System.CommandLine;
+using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using NSign.Credentials;
 
 namespace NSign.Cli;
@@ -11,10 +13,10 @@ internal static class PinCommand
         cmd.SetAction(_ =>
         {
             Console.Write("Token PIN: ");
-            var pin = ReadMasked();
+            using var pin = ReadMasked();
             Console.WriteLine();
 
-            if (string.IsNullOrEmpty(pin))
+            if (pin.IsEmpty)
             {
                 Console.Error.WriteLine("PIN was empty; nothing stored.");
                 return ExitCodes.InvalidArguments;
@@ -22,16 +24,12 @@ internal static class PinCommand
 
             try
             {
-                CredentialStore.WritePin(pin);
+                CredentialStore.WritePin(pin.Span);
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Failed to store PIN: {ex.GetType().Name}");
                 return ExitCodes.Failure;
-            }
-            finally
-            {
-                pin = string.Empty;
             }
 
             Console.WriteLine($"PIN stored in Credential Manager as '{Defaults.CredentialTarget}'.");
@@ -40,27 +38,48 @@ internal static class PinCommand
         return cmd;
     }
 
-    private static string ReadMasked()
+    private static PinSecret ReadMasked()
     {
-        var buffer = new System.Text.StringBuilder();
-        while (true)
+        var buffer = new char[256];
+        var length = 0;
+        try
         {
-            var key = Console.ReadKey(intercept: true);
-            if (key.Key == ConsoleKey.Enter)
-                break;
-            if (key.Key == ConsoleKey.Backspace)
+            while (true)
             {
-                if (buffer.Length > 0)
-                    buffer.Length--;
-                continue;
+                var key = Console.ReadKey(intercept: true);
+                if (key.Key == ConsoleKey.Enter)
+                    break;
+                if (key.Key == ConsoleKey.Backspace)
+                {
+                    if (length > 0)
+                    {
+                        length--;
+                        buffer[length] = '\0';
+                    }
+                    continue;
+                }
+
+                if (key.KeyChar == '\0')
+                    continue;
+
+                if (length >= buffer.Length)
+                {
+                    var grown = new char[buffer.Length * 2];
+                    buffer.AsSpan(0, length).CopyTo(grown);
+                    CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(buffer.AsSpan()));
+                    buffer = grown;
+                }
+
+                buffer[length++] = key.KeyChar;
             }
 
-            if (key.KeyChar == '\0')
-                continue;
-
-            buffer.Append(key.KeyChar);
+            var pin = new char[length];
+            buffer.AsSpan(0, length).CopyTo(pin);
+            return new PinSecret(pin);
         }
-
-        return buffer.ToString();
+        finally
+        {
+            CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(buffer.AsSpan()));
+        }
     }
 }

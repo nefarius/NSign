@@ -17,7 +17,7 @@ internal sealed class SafeNetKey : IDisposable
 
     public X509Certificate2 Certificate => _certificate;
 
-    public static SafeNetKey Open(X509Certificate2 certificate, string pin)
+    public static SafeNetKey Open(X509Certificate2 certificate, ReadOnlySpan<char> pin)
     {
         var rsa = certificate.GetRSAPrivateKey() as RSACng
             ?? throw new InvalidOperationException(
@@ -75,10 +75,18 @@ internal sealed class SafeNetKey : IDisposable
         _rsa.Dispose();
     }
 
-    private static void InjectPin(CngKey key, string pin)
+    private static void InjectPin(CngKey key, ReadOnlySpan<char> pin)
     {
-        var bytes = Encoding.Unicode.GetBytes(pin + "\0");
-        key.SetProperty(new CngProperty("SmartCardPin", bytes, CngPropertyOptions.None));
-        CryptographicOperations.ZeroMemory(bytes);
+        var byteCount = Encoding.Unicode.GetByteCount(pin);
+        var bytes = new byte[byteCount + sizeof(char)];
+        Encoding.Unicode.GetBytes(pin, bytes);
+        try
+        {
+            key.SetProperty(new CngProperty("SmartCardPin", bytes, CngPropertyOptions.None));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+        }
     }
 }

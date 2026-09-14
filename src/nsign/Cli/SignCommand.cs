@@ -69,13 +69,10 @@ internal static class SignCommand
             descriptionUrl,
             files
         };
-        cmd.TreatUnmatchedTokensAsErrors = false;
+        cmd.TreatUnmatchedTokensAsErrors = true;
 
         cmd.SetAction((parseResult, ct) =>
         {
-            foreach (var unmatched in parseResult.UnmatchedTokens)
-                Console.Error.WriteLine($"Ignoring unrecognized argument: {unmatched}");
-
             try
             {
                 var options = new SignOptions
@@ -114,6 +111,12 @@ internal static class SignCommand
 
         foreach (var file in options.Files)
         {
+            if (LooksLikeFlag(file))
+            {
+                Console.Error.WriteLine($"Unrecognized argument: {file}");
+                return ExitCodes.InvalidArguments;
+            }
+
             if (!File.Exists(file))
             {
                 Console.Error.WriteLine($"File not found: {file}");
@@ -121,11 +124,12 @@ internal static class SignCommand
             }
         }
 
-        string pin;
+        PinSecret pin;
         try
         {
-            if (!CredentialStore.TryReadPin(out pin) || string.IsNullOrEmpty(pin))
+            if (!CredentialStore.TryReadPin(out pin) || pin.IsEmpty)
             {
+                pin.Dispose();
                 Console.Error.WriteLine(
                     $"No PIN in Credential Manager (target '{Defaults.CredentialTarget}'). Run: nsign set-pin");
                 return ExitCodes.InvalidArguments;
@@ -137,55 +141,73 @@ internal static class SignCommand
             return ExitCodes.Failure;
         }
 
-        try
+        using (pin)
         {
-            using var cert = CertificateResolver.Resolve(options.Thumbprint, options.Subject);
-            if (options.Verbose)
-                Console.WriteLine($"Using cert {cert.Thumbprint} ({cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false)})");
-
-            using var key = SafeNetKey.Open(cert, pin);
-            using var signer = new AuthenticodeSigner(
-                key,
-                options.FileDigest,
-                options.TimestampUrl,
-                options.TimestampDigest,
-                options.AppendSignature,
-                options.Description,
-                options.DescriptionUrl);
-
-            foreach (var file in options.Files)
+            try
             {
-                var full = Path.GetFullPath(file);
+                using var cert = CertificateResolver.Resolve(options.Thumbprint, options.Subject);
                 if (options.Verbose)
-                    Console.WriteLine($"Signing {full}");
+                    Console.WriteLine($"Using cert {cert.Thumbprint} ({cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false)})");
 
-                var hr = signer.SignFile(full);
-                if (hr != 0)
+                using var key = SafeNetKey.Open(cert, pin.Span);
+                using var signer = new AuthenticodeSigner(
+                    key,
+                    options.FileDigest,
+                    options.TimestampUrl,
+                    options.TimestampDigest,
+                    options.AppendSignature,
+                    options.Description,
+                    options.DescriptionUrl);
+
+                foreach (var file in options.Files)
                 {
-                    Console.Error.WriteLine($"Failed to sign {full}: {TokenStatus.Describe(hr)} (0x{hr:X8})");
-                    return ExitCodes.Failure;
+                    var full = Path.GetFullPath(file);
+                    if (options.Verbose)
+                        Console.WriteLine($"Signing {full}");
+
+                    var hr = signer.SignFile(full);
+                    if (hr != 0)
+                    {
+                        Console.Error.WriteLine($"Failed to sign {full}: {TokenStatus.Describe(hr)} (0x{hr:X8})");
+                        return ExitCodes.Failure;
+                    }
+
+                    Console.WriteLine($"Successfully signed: {full}");
                 }
 
-                Console.WriteLine($"Successfully signed: {full}");
+                return ExitCodes.Success;
             }
+            catch (TokenException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return ExitCodes.Failure;
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return ExitCodes.InvalidArguments;
+            }
+            catch (CryptographicException ex)
+            {
+                Console.Error.WriteLine(TokenStatus.Describe(ex.HResult) + $" (0x{ex.HResult:X8})");
+                return ExitCodes.Failure;
+            }
+        }
+    }
 
-            return ExitCodes.Success;
-        }
-        catch (TokenException ex)
-        {
-            Console.Error.WriteLine(ex.Message);
-            return ExitCodes.Failure;
-        }
-        catch (InvalidOperationException ex)
-        {
-            Console.Error.WriteLine(ex.Message);
-            return ExitCodes.Failure;
-        }
-        catch (CryptographicException ex)
-        {
-            Console.Error.WriteLine(TokenStatus.Describe(ex.HResult) + $" (0x{ex.HResult:X8})");
-            return ExitCodes.Failure;
-        }
+    private static bool LooksLikeFlag(string token)
+    {
+        if (token.Contains('\\', StringComparison.Ordinal))
+            return false;
+        if (token.StartsWith("--", StringComparison.Ordinal)
+            && token.Length > 2
+            && char.IsLetter(token[2])
+            && token.IndexOf('/', 2) < 0)
+            return true;
+        return token.Length >= 2
+               && token[0] is '-' or '/'
+               && char.IsLetter(token[1])
+               && token.IndexOf('/', 1) < 0;
     }
 
     private static HashAlgorithmName ParseHash(string? name, string what)

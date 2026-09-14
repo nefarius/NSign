@@ -1,3 +1,6 @@
+// Interop layout follows AzureSignTool (MIT),
+// Copyright (c) 2017 Kevin Jones and Oren Novotny.
+// https://github.com/vcsjones/AzureSignTool
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;

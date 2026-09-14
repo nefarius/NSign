@@ -35,12 +35,7 @@ internal static class CertificateResolver
         }
         else
         {
-            match = candidates.FirstOrDefault(c =>
-                string.Equals(NormalizeThumbprint(c.Thumbprint), Defaults.DefaultThumbprint,
-                    StringComparison.OrdinalIgnoreCase));
-            if (match is null)
-                throw new InvalidOperationException(
-                    $"No default certificate ({Defaults.DefaultThumbprint}) in CurrentUser\\My. Pass /sha1 or /n.");
+            throw new InvalidOperationException("Pass /sha1 <thumbprint> or /n <subject> to select a certificate.");
         }
 
         return new X509Certificate2(match);

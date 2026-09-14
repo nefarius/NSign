@@ -13,6 +13,8 @@
     <AssemblyName>nsign</AssemblyName>
     <RootNamespace>NSign</RootNamespace>
     <Description>Silent Authenticode signer for SafeNet Authentication Client tokens.</Description>
+    <Copyright>Copyright (c) 2026 Benjamin Höglinger-Stelzer</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.11" />
