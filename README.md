@@ -26,7 +26,8 @@ Silent Authenticode signer for a SafeNet Authentication Client hardware token. D
 | Component | Supported |
 | --- | --- |
 | OS | Windows 10/11, **x64** |
-| SDK (build / `dotnet tool`) | [.NET SDK 8.x, 9.x, or 10.x](https://dotnet.microsoft.com/download/dotnet) |
+| SDK (source build / pack / standalone publish) | [.NET SDK 10.x](https://dotnet.microsoft.com/download/dotnet/10.0) (project includes `net10.0`) |
+| SDK (`dotnet tool` install / update) | .NET SDK 8.x, 9.x, or 10.x |
 | Runtime (global/local tool) | Matching .NET 8, 9, or 10 **runtime** on Windows x64 |
 | Token stack | SafeNet Authentication Client (tested with 10.9.x) + SafeNet Smart Card Key Storage Provider |
 | Timestamp | RFC3161 HTTP(S) timestamp servers |
@@ -161,7 +162,7 @@ Either `/sha1` or `/n` is required.
 
 Prerequisites:
 
-- .NET SDK **8.x, 9.x, or 10.x** (SDK 10.x can multi-target all three)
+- .NET SDK **10.x** (required to build, pack, and publish because the project targets `net10.0`)
 - Windows x64
 - Windows SDK (only required for `nsign verify`, which locates `signtool.exe`)
 
