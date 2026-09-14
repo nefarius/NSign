@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Security.Cryptography;
+
 using NSign.Credentials;
 using NSign.Signing;
 
@@ -71,7 +72,7 @@ internal static class SignCommand
         };
         cmd.TreatUnmatchedTokensAsErrors = true;
 
-        cmd.SetAction((parseResult, ct) =>
+        cmd.SetAction((parseResult, _) =>
         {
             try
             {
@@ -81,8 +82,8 @@ internal static class SignCommand
                     AppendSignature = parseResult.GetValue(append),
                     Thumbprint = parseResult.GetValue(sha1),
                     Subject = parseResult.GetValue(subject),
-                    FileDigest = ParseHash(parseResult.GetValue(fd), "file digest"),
-                    TimestampDigest = ParseHash(parseResult.GetValue(td), "timestamp digest"),
+                    FileDigest = HashAlgorithms.Parse(parseResult.GetValue(fd), "file digest"),
+                    TimestampDigest = HashAlgorithms.Parse(parseResult.GetValue(td), "timestamp digest"),
                     TimestampUrl = parseResult.GetValue(timestampUrl),
                     Description = parseResult.GetValue(description),
                     DescriptionUrl = parseResult.GetValue(descriptionUrl),
@@ -111,7 +112,7 @@ internal static class SignCommand
 
         foreach (var file in options.Files)
         {
-            if (LooksLikeFlag(file))
+            if (SignToolArgNormalizer.IsFlagToken(file))
             {
                 Console.Error.WriteLine($"Unrecognized argument: {file}");
                 return ExitCodes.InvalidArguments;
@@ -137,7 +138,7 @@ internal static class SignCommand
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to read PIN from Credential Manager: {ex.GetType().Name}");
+            Console.Error.WriteLine($"Failed to read PIN from Credential Manager: {ex.GetType().Name}: {ex.Message}");
             return ExitCodes.Failure;
         }
 
@@ -195,30 +196,4 @@ internal static class SignCommand
         }
     }
 
-    private static bool LooksLikeFlag(string token)
-    {
-        if (token.Contains('\\', StringComparison.Ordinal))
-            return false;
-        if (token.StartsWith("--", StringComparison.Ordinal)
-            && token.Length > 2
-            && char.IsLetter(token[2])
-            && token.IndexOf('/', 2) < 0)
-            return true;
-        return token.Length >= 2
-               && token[0] is '-' or '/'
-               && char.IsLetter(token[1])
-               && token.IndexOf('/', 1) < 0;
-    }
-
-    private static HashAlgorithmName ParseHash(string? name, string what)
-    {
-        return (name ?? "sha256").Trim().ToLowerInvariant() switch
-        {
-            "sha1" or "sha-1" => HashAlgorithmName.SHA1,
-            "sha256" or "sha-256" => HashAlgorithmName.SHA256,
-            "sha384" or "sha-384" => HashAlgorithmName.SHA384,
-            "sha512" or "sha-512" => HashAlgorithmName.SHA512,
-            _ => throw new InvalidOperationException($"Unsupported {what} algorithm '{name}'.")
-        };
-    }
 }

@@ -1,6 +1,7 @@
 using System.CommandLine;
-using System.Security.Cryptography;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+
 using NSign.Credentials;
 
 namespace NSign.Cli;
@@ -28,7 +29,7 @@ internal static class PinCommand
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to store PIN: {ex.GetType().Name}");
+                Console.Error.WriteLine($"Failed to store PIN: {ex.GetType().Name}: {ex.Message}");
                 return ExitCodes.Failure;
             }
 

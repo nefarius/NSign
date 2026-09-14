@@ -75,6 +75,21 @@ internal static class SignToolArgNormalizer
         return true;
     }
 
+    internal static bool IsFlagToken(string token)
+    {
+        if (token.Contains('\\', StringComparison.Ordinal))
+            return false;
+        if (token.StartsWith("--", StringComparison.Ordinal)
+            && token.Length > 2
+            && char.IsLetter(token[2])
+            && token.IndexOf('/', 2) < 0)
+            return true;
+        return token.Length >= 2
+               && token[0] is '-' or '/'
+               && char.IsLetter(token[1])
+               && token.IndexOf('/', 1) < 0;
+    }
+
     private static bool LooksLikeFlag(string arg)
         => arg.Length >= 2 && (arg[0] is '/' or '-') && char.IsLetter(arg[1]);
 }

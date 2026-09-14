@@ -1,8 +1,10 @@
 // Interop layout follows AzureSignTool (MIT),
 // Copyright (c) 2017 Kevin Jones and Oren Novotny.
 // https://github.com/vcsjones/AzureSignTool
+#pragma warning disable IDE1006 // Win32 / AzureSignTool field names
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+
 using Microsoft.Win32.SafeHandles;
 
 namespace NSign.Signing;

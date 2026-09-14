@@ -1,3 +1,4 @@
+#pragma warning disable IDE1006 // Win32 status constant names
 namespace NSign.Signing;
 
 internal sealed class TokenException : Exception

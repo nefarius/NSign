@@ -2,7 +2,11 @@ bin/
 obj/
 .vs/
 artifacts/
+TestResults/
+coverage/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
+*.received.*
+

@@ -10,78 +10,125 @@ internal static class CertificateResolver
     public static X509Certificate2 Resolve(string? thumbprint, string? subject)
     {
         using var store = OpenMy();
-        var candidates = store.Certificates.OfType<X509Certificate2>().ToList();
-
-        X509Certificate2? match = null;
-        if (!string.IsNullOrWhiteSpace(thumbprint))
+        var certificates = store.Certificates;
+        try
         {
-            var want = NormalizeThumbprint(thumbprint);
-            match = candidates.FirstOrDefault(c =>
-                string.Equals(NormalizeThumbprint(c.Thumbprint), want, StringComparison.OrdinalIgnoreCase)
-                && HasUsableRsaCngKey(c));
-            if (match is null)
-                throw new InvalidOperationException(
-                    $"No certificate with thumbprint {thumbprint} and a usable RSA CNG private key in CurrentUser\\My.");
+            var match = SelectCertificate(
+                certificates.OfType<X509Certificate2>(),
+                thumbprint,
+                subject,
+                HasUsableRsaCngKey);
+            return new X509Certificate2(match);
         }
-        else if (!string.IsNullOrWhiteSpace(subject))
+        finally
         {
-            match = candidates
-                .Where(c => c.Subject.Contains(subject, StringComparison.OrdinalIgnoreCase))
-                .Where(IsCodeSigning)
-                .Where(c => c.HasPrivateKey)
-                .OrderByDescending(c => c.NotAfter)
-                .FirstOrDefault();
-            if (match is null)
-                throw new InvalidOperationException(
-                    $"No CurrentUser\\My code-signing certificate matches subject '{subject}'.");
+            DisposeCertificates(certificates);
         }
-        else
-        {
-            throw new InvalidOperationException("Pass /sha1 <thumbprint> or /n <subject> to select a certificate.");
-        }
-
-        return new X509Certificate2(match);
     }
 
     public static IReadOnlyList<CertRow> ListEligible()
     {
         using var store = OpenMy();
-        var rows = new List<CertRow>();
-        foreach (var cert in store.Certificates)
+        var certificates = store.Certificates;
+        try
         {
-            if (!cert.HasPrivateKey || !IsCodeSigning(cert))
-                continue;
-
-            var provider = "(unknown)";
-            var keyName = "";
-            try
+            var rows = new List<CertRow>();
+            foreach (X509Certificate2 cert in certificates)
             {
-                using var rsa = cert.GetRSAPrivateKey();
-                if (rsa is RSACng cng)
+                if (!cert.HasPrivateKey || !IsCodeSigning(cert))
+                    continue;
+
+                var provider = "(unknown)";
+                var keyName = "";
+                try
                 {
-                    provider = cng.Key.Provider?.Provider ?? "(unknown)";
-                    keyName = cng.Key.KeyName ?? "";
+                    using var rsa = cert.GetRSAPrivateKey();
+                    if (rsa is RSACng cng)
+                    {
+                        provider = cng.Key.Provider?.Provider ?? "(unknown)";
+                        keyName = cng.Key.KeyName ?? "";
+                    }
+                    else if (rsa is not null)
+                    {
+                        provider = rsa.GetType().Name;
+                    }
                 }
-                else if (rsa is not null)
+                catch (CryptographicException)
                 {
-                    provider = rsa.GetType().Name;
+                    provider = "(key unavailable)";
                 }
-            }
-            catch (CryptographicException)
-            {
-                provider = "(key unavailable)";
+
+                rows.Add(new CertRow(cert.Thumbprint ?? "", cert.Subject, cert.NotAfter, provider, keyName));
             }
 
-            rows.Add(new CertRow(cert.Thumbprint ?? "", cert.Subject, cert.NotAfter, provider, keyName));
+            return rows
+                .OrderByDescending(r => string.Equals(r.Provider, Defaults.SafeNetKsp, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(r => r.NotAfter)
+                .ToList();
         }
-
-        return rows
-            .OrderByDescending(r => string.Equals(r.Provider, Defaults.SafeNetKsp, StringComparison.OrdinalIgnoreCase))
-            .ThenByDescending(r => r.NotAfter)
-            .ToList();
+        finally
+        {
+            DisposeCertificates(certificates);
+        }
     }
 
-    private static bool HasUsableRsaCngKey(X509Certificate2 cert)
+    internal static X509Certificate2 SelectCertificate(
+        IEnumerable<X509Certificate2> candidates,
+        string? thumbprint,
+        string? subject,
+        Func<X509Certificate2, bool> keyUsable)
+    {
+        var snapshot = candidates as IList<X509Certificate2> ?? candidates.ToList();
+
+        if (!string.IsNullOrWhiteSpace(thumbprint))
+        {
+            var want = NormalizeThumbprint(thumbprint);
+            var match = snapshot.FirstOrDefault(c =>
+                string.Equals(NormalizeThumbprint(c.Thumbprint), want, StringComparison.OrdinalIgnoreCase)
+                && IsCodeSigning(c)
+                && keyUsable(c));
+            if (match is null)
+                throw new InvalidOperationException(
+                    $"No certificate with thumbprint {thumbprint} and a usable RSA CNG private key in CurrentUser\\My.");
+            return match;
+        }
+
+        if (!string.IsNullOrWhiteSpace(subject))
+        {
+            var match = snapshot
+                .Where(c => c.Subject.Contains(subject, StringComparison.OrdinalIgnoreCase))
+                .Where(IsCodeSigning)
+                .Where(c => c.HasPrivateKey)
+                .Where(keyUsable)
+                .OrderByDescending(c => c.NotAfter)
+                .FirstOrDefault();
+            if (match is null)
+                throw new InvalidOperationException(
+                    $"No CurrentUser\\My code-signing certificate matches subject '{subject}'.");
+            return match;
+        }
+
+        throw new InvalidOperationException("Pass /sha1 <thumbprint> or /n <subject> to select a certificate.");
+    }
+
+    internal static bool IsCodeSigning(X509Certificate2 cert)
+    {
+        foreach (var ext in cert.Extensions)
+        {
+            if (ext is X509EnhancedKeyUsageExtension eku)
+            {
+                return eku.EnhancedKeyUsages.OfType<Oid>()
+                    .Any(o => o.Value == Defaults.CodeSigningEku);
+            }
+        }
+
+        return false;
+    }
+
+    internal static string NormalizeThumbprint(string? value)
+        => (value ?? "").Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
+
+    internal static bool HasUsableRsaCngKey(X509Certificate2 cert)
     {
         if (!cert.HasPrivateKey)
             return false;
@@ -104,21 +151,9 @@ internal static class CertificateResolver
         return store;
     }
 
-    private static bool IsCodeSigning(X509Certificate2 cert)
+    private static void DisposeCertificates(X509Certificate2Collection certificates)
     {
-        foreach (var ext in cert.Extensions)
-        {
-            if (ext is X509EnhancedKeyUsageExtension eku)
-            {
-                return eku.EnhancedKeyUsages.OfType<System.Security.Cryptography.Oid>()
-                    .Any(o => o.Value == Defaults.CodeSigningEku);
-            }
-        }
-
-        // No EKU extension means the cert is unconstrained.
-        return true;
+        foreach (X509Certificate2 cert in certificates)
+            cert.Dispose();
     }
-
-    private static string NormalizeThumbprint(string? value)
-        => (value ?? "").Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
 }
