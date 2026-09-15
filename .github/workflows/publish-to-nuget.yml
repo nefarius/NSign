@@ -53,7 +53,7 @@ jobs:
         run: |
           $path = Join-Path $PWD 'README.md'
           $text = [System.IO.File]::ReadAllText($path)
-          $updated = [regex]::Replace($text, '# <img[^>]*>', '# ')
+          $updated = [regex]::Replace($text, '(?m)^# <img[^>\r\n]*>', '# ')
           $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
           [System.IO.File]::WriteAllText($path, $updated, $utf8NoBom)
 
@@ -99,7 +99,7 @@ jobs:
         run: |
           $path = Join-Path $PWD 'README.md'
           $text = [System.IO.File]::ReadAllText($path)
-          $updated = [regex]::Replace($text, '# <img[^>]*>', '# ')
+          $updated = [regex]::Replace($text, '(?m)^# <img[^>\r\n]*>', '# ')
           $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
           [System.IO.File]::WriteAllText($path, $updated, $utf8NoBom)
 
