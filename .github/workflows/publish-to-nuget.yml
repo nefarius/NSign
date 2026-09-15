@@ -85,20 +85,35 @@ jobs:
       - name: Build
         run: dotnet build nsign.sln -c Release --no-restore
 
-      - name: Sign tool assemblies
+      - name: Pack
+        run: dotnet pack .\src\nsign\nsign.csproj -c Release --no-build -o .\artifacts\nupkg
+
+      - name: Stage package assemblies
+        shell: pwsh
+        run: >
+          ./scripts/Stage-PackageSigning.ps1
+          -PackageDirectory ./artifacts/nupkg
+          -LayoutDirectory ./artifacts/nupkg-sign
+
+      - name: Sign packaged tool assemblies
         uses: nefarius/SignRelay@39ccbe0cef16a383237130380a5aef8db040d5d0 # v1.3.0
         with:
           server: ${{ vars.SIGN_RELAY_SERVER }}
           token: ${{ secrets.SIGN_RELAY_CI_TOKEN }}
           files: |
-            ./src/nsign/bin/Release/net8.0/nsign.dll
-            ./src/nsign/bin/Release/net9.0/nsign.dll
-            ./src/nsign/bin/Release/net10.0/nsign.dll
+            ./artifacts/nupkg-sign/tools/net8.0/any/nsign.dll
+            ./artifacts/nupkg-sign/tools/net9.0/any/nsign.dll
+            ./artifacts/nupkg-sign/tools/net10.0/any/nsign.dll
           in-place: true
           tool-version: '1.3.0'
 
-      - name: Pack
-        run: dotnet pack .\src\nsign\nsign.csproj -c Release --no-build -o .\artifacts\nupkg
+      - name: Repack signed assemblies
+        shell: pwsh
+        run: >
+          ./scripts/Stage-PackageSigning.ps1
+          -PackageDirectory ./artifacts/nupkg
+          -LayoutDirectory ./artifacts/nupkg-sign
+          -Repack
 
       - name: Verify package
         shell: pwsh
