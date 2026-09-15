@@ -5,7 +5,10 @@
 [![NuGet downloads](https://img.shields.io/nuget/dt/Nefarius.Tools.NSign.svg)](https://www.nuget.org/packages/Nefarius.Tools.NSign)
 [![GitHub release](https://img.shields.io/github/v/release/nefarius/NSign.svg)](https://github.com/nefarius/NSign/releases)
 
-Silent Authenticode signer for a SafeNet Authentication Client hardware token. Drop-in replacement for the Windows SDK `signtool sign` argv that SignRelay (and similar agents) already emit.
+Silent Authenticode signer for a SafeNet Authentication Client hardware token.
+
+> [!TIP]
+> Drop-in replacement for the Windows SDK `signtool sign` argv that SignRelay (and similar agents) already emit.
 
 `nsign` injects the token PIN into the SafeNet CNG KSP through the CNG `SmartCardPin` property (`NCRYPT_PIN_PROPERTY`) and performs private-key operations with `NCRYPT_SILENT_FLAG`, then signs via `SignerSignEx3`. The SafeNet PIN dialog is not shown. PIN-change and PIN-expiry dialogs are **not** automated; those stay a manual operator task.
 
