@@ -2,7 +2,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string] $PackageDirectory
+    [string] $PackageDirectory,
+
+    [Parameter()]
+    [switch] $RequireAuthenticode
 )
 
 $ErrorActionPreference = 'Stop'
@@ -68,8 +71,20 @@ try {
 
     foreach ($tfm in @('net8.0', 'net9.0', 'net10.0')) {
         $toolDir = Join-Path $extract "tools/$tfm/any"
-        if (-not (Test-Path -LiteralPath (Join-Path $toolDir 'nsign.dll'))) {
+        $dll = Join-Path $toolDir 'nsign.dll'
+        if (-not (Test-Path -LiteralPath $dll)) {
             throw "Package is missing tools/$tfm/any/nsign.dll"
+        }
+
+        if ($RequireAuthenticode) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $dll
+            if ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate) {
+                $status = $signature.Status
+                $message = $signature.StatusMessage
+                throw "tools/$tfm/any/nsign.dll is not Authenticode-signed (Status=$status): $message"
+            }
+
+            Write-Host "Authenticode OK tools/$tfm/any/nsign.dll ($($signature.SignerCertificate.Subject))"
         }
     }
 

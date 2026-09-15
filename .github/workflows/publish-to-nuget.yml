@@ -79,12 +79,30 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Restore
+        run: dotnet restore nsign.sln
+
+      - name: Build
+        run: dotnet build nsign.sln -c Release --no-restore
+
+      - name: Sign tool assemblies
+        uses: nefarius/SignRelay@39ccbe0cef16a383237130380a5aef8db040d5d0 # v1.3.0
+        with:
+          server: ${{ vars.SIGN_RELAY_SERVER }}
+          token: ${{ secrets.SIGN_RELAY_CI_TOKEN }}
+          files: |
+            ./src/nsign/bin/Release/net8.0/nsign.dll
+            ./src/nsign/bin/Release/net9.0/nsign.dll
+            ./src/nsign/bin/Release/net10.0/nsign.dll
+          in-place: true
+          tool-version: '1.3.0'
+
       - name: Pack
-        run: dotnet pack .\src\nsign\nsign.csproj -c Release -o .\artifacts\nupkg
+        run: dotnet pack .\src\nsign\nsign.csproj -c Release --no-build -o .\artifacts\nupkg
 
       - name: Verify package
         shell: pwsh
-        run: ./scripts/Verify-Package.ps1 -PackageDirectory ./artifacts/nupkg
+        run: ./scripts/Verify-Package.ps1 -PackageDirectory ./artifacts/nupkg -RequireAuthenticode
 
       - name: NuGet login
         id: login
@@ -132,6 +150,15 @@ jobs:
 
       - name: Publish standalone win-x64
         run: dotnet publish .\src\nsign\nsign.csproj -c Release -f net10.0 -p:PublishProfile=Standalone-win-x64
+
+      - name: Sign standalone executable
+        uses: nefarius/SignRelay@39ccbe0cef16a383237130380a5aef8db040d5d0 # v1.3.0
+        with:
+          server: ${{ vars.SIGN_RELAY_SERVER }}
+          token: ${{ secrets.SIGN_RELAY_CI_TOKEN }}
+          files: ./artifacts/nsign/nsign.exe
+          in-place: true
+          tool-version: '1.3.0'
 
       - name: Pack release archive
         shell: pwsh
