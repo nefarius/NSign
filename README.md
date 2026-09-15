@@ -1,4 +1,4 @@
-# nsign
+# <img src="assets/NSS-128x128.png" align="left" />nsign
 
 [![Build](https://github.com/nefarius/NSign/actions/workflows/build.yml/badge.svg)](https://github.com/nefarius/NSign/actions/workflows/build.yml)
 [![NuGet](https://img.shields.io/nuget/v/Nefarius.Tools.NSign.svg)](https://www.nuget.org/packages/Nefarius.Tools.NSign)
