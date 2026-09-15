@@ -48,6 +48,15 @@ jobs:
           name: publish-test-results
           path: TestResults/
 
+      - name: Modify README.md for NuGet
+        shell: pwsh
+        run: |
+          $path = Join-Path $PWD 'README.md'
+          $text = [System.IO.File]::ReadAllText($path)
+          $updated = [regex]::Replace($text, '# <img[^>]*>', '# ')
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText($path, $updated, $utf8NoBom)
+
       - name: Pack
         run: dotnet pack .\src\nsign\nsign.csproj -c Release --no-build -o .\artifacts\nupkg
 
@@ -84,6 +93,15 @@ jobs:
 
       - name: Build
         run: dotnet build nsign.sln -c Release --no-restore
+
+      - name: Modify README.md for NuGet
+        shell: pwsh
+        run: |
+          $path = Join-Path $PWD 'README.md'
+          $text = [System.IO.File]::ReadAllText($path)
+          $updated = [regex]::Replace($text, '# <img[^>]*>', '# ')
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText($path, $updated, $utf8NoBom)
 
       - name: Pack
         run: dotnet pack .\src\nsign\nsign.csproj -c Release --no-build -o .\artifacts\nupkg
