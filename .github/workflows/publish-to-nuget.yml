@@ -114,7 +114,7 @@ jobs:
           -LayoutDirectory ./artifacts/nupkg-sign
 
       - name: Sign packaged tool assemblies
-        uses: nefarius/SignRelay@39ccbe0cef16a383237130380a5aef8db040d5d0 # v1.3.0
+        uses: nefarius/SignRelay@5a3ae05497dda0f8f582d3715324155168dddbca # v1.3.2
         with:
           server: ${{ vars.SIGN_RELAY_SERVER }}
           token: ${{ secrets.SIGN_RELAY_CI_TOKEN }}
@@ -185,7 +185,7 @@ jobs:
         run: dotnet publish .\src\nsign\nsign.csproj -c Release -f net10.0 -p:PublishProfile=Standalone-win-x64
 
       - name: Sign standalone executable
-        uses: nefarius/SignRelay@39ccbe0cef16a383237130380a5aef8db040d5d0 # v1.3.0
+        uses: nefarius/SignRelay@5a3ae05497dda0f8f582d3715324155168dddbca # v1.3.2
         with:
           server: ${{ vars.SIGN_RELAY_SERVER }}
           token: ${{ secrets.SIGN_RELAY_CI_TOKEN }}
